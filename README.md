@@ -1,5 +1,7 @@
 # tapable-ts
 
+![npm](https://img.shields.io/npm/v/tapable-ts) ![npm bundle size](https://img.shields.io/bundlephobia/minzip/tapable-ts) ![NPM](https://img.shields.io/npm/l/tapable-ts)
+
 A TypeScript rewrite of [`tapable`](https://github.com/webpack/tapable)
 
 ## Tapable
