@@ -8,6 +8,44 @@ A TypeScript rewrite of [`tapable`](https://github.com/webpack/tapable)
 
 After using it in a bunch of projects, I wanted a bit more control over what's possible; like custom tap execution order, the ability to `untap` a hook, higher level abstractions, `PluginManager`s, etc.
 
+## API
+
+### Hooks
+
+Hooks are constructed by importing and instantiating a class:
+
+```js
+import { SyncHook } from "tapable-ts";
+
+const hook = new SyncHook();
+```
+
+if using TypeScript, pass a tuple that represents the arguments as the first type param (and a return type if applicable for the second)
+
+```tsx
+const hook = new SyncHook<[string, number]>();
+```
+
+you can also use named tuples for better editor support:
+
+```tsx
+const hook = new SyncHook<[name: string, age: number]>();
+```
+
+#### Hook Types
+
+The [tapable](https://github.com/webpack/tapable#hook-types) docs do a good job going over the different types of hooks. There are 9 in total:
+
+- `SyncHook`
+- `SyncBailHook`
+- `SyncWaterfallHook`
+- `SyncLoopHook`
+- `AsyncParallelHook`
+- `AsyncParallelBailHook`
+- `AsyncSeriesHook`
+- `AsyncSeriesBailHook`
+- `AsyncSeriesWaterfallHook`
+
 ### Interceptions
 
 The `intercept` API closely resembles the original `tapable` implementation. There are 6 events an interceptor can register for.
