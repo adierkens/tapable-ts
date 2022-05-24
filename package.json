@@ -13,9 +13,26 @@
     "dist",
     "README.md"
   ],
-  "siddeEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/adierkens/tapable-ts"
+  },
+  "keywords": [
+    "webpack",
+    "plugin",
+    "loader",
+    "inject"
+  ],
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org"
+  },
   "author": "Adam Dierkens <adam@dierkens.com>",
   "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/adierkens/tapable-ts/issues"
+  },
+  "homepage": "https://github.com/adierkens/tapable-ts#readme",
+  "sideEffects": false,
   "devDependencies": {
     "@types/jest": "^27.5.0",
     "esbuild": "^0.14.38",
