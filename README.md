@@ -22,13 +22,13 @@ const hook = new SyncHook();
 
 if using TypeScript, pass a tuple that represents the arguments as the first type param (and a return type if applicable for the second)
 
-```tsx
+```ts
 const hook = new SyncHook<[string, number]>();
 ```
 
 you can also use named tuples for better editor support:
 
-```tsx
+```ts
 const hook = new SyncHook<[name: string, age: number]>();
 ```
 
