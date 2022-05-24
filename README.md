@@ -1,9 +1,28 @@
 # tapable-ts
 
-A TypeScript rewrite of [tapable](https://github.com/webpack/tapable)
+A TypeScript rewrite of [`tapable`](https://github.com/webpack/tapable)
 
 ## Tapable
 
-`tapable` is a great plugin system from webpack that enables users to expose _hooks_ from modules within your app that plugins can _tap_ into and customize the behavior. I use it in almost all of my projects, but there are a few quirks with the original that made it hard to use in other applications:
+`tapable` is a great plugin system from webpack that enables users to expose _hooks_ from modules within your app that plugins can _tap_ into and customize the behavior. I use it in almost all of my projects, but there are a few quirks with the original that made it hard to use in other applications.
 
-- Ability to _untap_ a hook -- This wasn't a feature that the webpack authors needed, and their optimizations for webpack's use-case made it difficult to implement in the original library.
+After using it in a bunch of projects, I wanted a bit more control over what's possible; like custom tap execution order, the ability to `untap` a hook, higher level abstractions, `PluginManager`s, etc.
+
+### Interceptions
+
+The `intercept` API closely resembles the original `tapable` implementation. There are 6 events an interceptor can register for.
+
+3 are applicable to all hooks:
+
+- `tap` - Called when a new `tap` is registered
+- `call` - Called when the hook is first called
+- `error` - Called when a hook is going to throw
+
+1 only applies for looping hooks:
+
+- `loop` - Called during each new iteration of a looping hook
+
+and either of the following will be called:
+
+- `result` - Called when a hook is going to return a value
+- `done` - Called when a hook is finished executing, but no value is returned. This includes _Bail_ hooks that don't return a value.

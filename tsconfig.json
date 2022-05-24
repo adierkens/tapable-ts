@@ -5,8 +5,9 @@
     "tsBuildInfoFile": "./" /* Specify the folder for .tsbuildinfo incremental compilation files. */,
 
     /* Language and Environment */
-    "target": "esnext" /* Set the JavaScript language version for emitted JavaScript and include compatible library declarations. */,
+    "target": "ES2018" /* Set the JavaScript language version for emitted JavaScript and include compatible library declarations. */,
 
+    "lib": ["ESNext"],
     /* Modules */
     "module": "commonjs" /* Specify what module code is generated. */,
     "rootDir": "./src" /* Specify the root folder within your source files. */,

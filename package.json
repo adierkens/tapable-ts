@@ -9,6 +9,7 @@
     "build": "rollup -c",
     "test": "jest"
   },
+  "siddeEffects": false,
   "author": "Adam Dierkens <adam@dierkens.com>",
   "license": "MIT",
   "devDependencies": {

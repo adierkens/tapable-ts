@@ -1,205 +1,428 @@
-export interface Interceptor<Args extends any[], ReturnType> {
+export interface Interceptor<Args extends any[], ReturnType, ContextType> {
   name?: string;
-  tap?: (tap: Tap<Args, ReturnType>) => void;
+  tap?: (tap: Tap<Args, ReturnType, ContextType>) => void;
   call?: (...args: Args) => void;
   loop?: (...args: Args) => void;
   error?: (err: Error) => void;
-  result?: (r: ReturnType) => void;
+  result?: (
+    r: ReturnType extends Promise<infer AwaitedValue>
+      ? AwaitedValue
+      : ReturnType
+  ) => void;
   done?: () => void;
-  register?: (tap: Tap<Args, ReturnType>) => void;
 }
 
-export interface Tap<Args extends any[], ReturnType> {
+export type Tap<Args extends any[], ReturnType, ContextType = unknown> = {
   key: Symbol;
   name: string;
-  callback: (...args: Args) => ReturnType;
-}
+} & (
+  | {
+      context: false;
+      callback: (...args: Args) => ReturnType;
+    }
+  | {
+      context: true;
+      callback: (context: ContextType, ...args: Args) => ReturnType;
+    }
+);
 
-interface SyncBaseHookType<Args extends any[], ReturnType> {
-  tap(
-    name: string,
-    callback: (...args: Args) => ReturnType
-  ): Tap<Args, ReturnType>;
+type BasicTap<Args extends any[], ReturnType, ContextType> = (
+  name: string,
+  callback: (...args: Args) => ReturnType
+) => Tap<Args, ReturnType, ContextType>;
+
+type TapWithContext<Args extends any[], ReturnType, ContextType> =
+  | ((
+      options: {
+        name: string;
+        context?: false;
+      },
+      callback: (...args: Args) => ReturnType
+    ) => Tap<Args, ReturnType>)
+  | ((
+      options: {
+        name: string;
+        context: true;
+      },
+      callback: (context: ContextType, ...args: Args) => ReturnType
+    ) => Tap<Args, ReturnType>);
+
+interface SyncBaseHookType<Args extends any[], ReturnType, ContextType> {
+  tap:
+    | BasicTap<Args, ReturnType, ContextType>
+    | TapWithContext<Args, ReturnType, ContextType>;
   call(...args: Args): void;
   untap(key: Tap<Args, ReturnType>): void;
   isUsed(): boolean;
-  intercept(int: Interceptor<Args, ReturnType>): void;
+  intercept(int: Interceptor<Args, ReturnType, ContextType>): void;
 }
 
-class Hook<Args extends any[], ReturnType>
-  implements SyncBaseHookType<Args, ReturnType>
+function callTap<Args extends any[], ReturnType, ContextType>(
+  tap: Tap<Args, ReturnType, ContextType>,
+  args: Args,
+  ctx: ContextType
+) {
+  if (tap.context) {
+    return tap.callback(ctx, ...args);
+  }
+
+  return tap.callback(...args);
+}
+
+class InterceptionManager<
+  Args extends any[],
+  ReturnType,
+  ContextType = Record<string, any>
+> {
+  protected interceptions: Array<Interceptor<Args, ReturnType, ContextType>>;
+  private interceptionKeySet: Set<
+    keyof Interceptor<Args, ReturnType, ContextType>
+  >;
+
+  constructor() {
+    this.interceptions = [];
+    this.interceptionKeySet = new Set();
+  }
+
+  isUsed() {
+    return this.interceptions.length > 0;
+  }
+
+  intercept(int: Interceptor<Args, ReturnType, ContextType>): void {
+    this.interceptions.push(int);
+    Object.keys(int).forEach((s) => {
+      this.interceptionKeySet.add(s as any);
+    });
+  }
+
+  tap(tap: Tap<Args, ReturnType, ContextType>): void {
+    if (this.interceptionKeySet.has("tap")) {
+      this.interceptions.forEach((i) => {
+        i.tap?.(tap);
+      });
+    }
+  }
+
+  call(...args: Args): void {
+    if (this.interceptionKeySet.has("call")) {
+      this.interceptions.forEach((i) => {
+        i.call?.(...args);
+      });
+    }
+  }
+
+  loop(...args: Args): void {
+    if (this.interceptionKeySet.has("loop")) {
+      this.interceptions.forEach((i) => {
+        i.loop?.(...args);
+      });
+    }
+  }
+
+  error(err: unknown): void {
+    if (this.interceptionKeySet.has("error")) {
+      if (err instanceof Error) {
+        const asError: Error = err;
+        this.interceptions.forEach((i) => {
+          i.error?.(asError);
+        });
+      }
+    }
+  }
+
+  result(
+    r: ReturnType extends Promise<infer AwaitedValue>
+      ? AwaitedValue
+      : ReturnType
+  ): void {
+    if (this.interceptionKeySet.has("result")) {
+      this.interceptions.forEach((i) => {
+        i.result?.(r);
+      });
+    }
+  }
+
+  done(): void {
+    if (this.interceptionKeySet.has("done")) {
+      this.interceptions.forEach((i) => {
+        i.done?.();
+      });
+    }
+  }
+}
+
+abstract class Hook<
+  Args extends any[],
+  ReturnType,
+  ContextType = Record<string, any>
+> implements SyncBaseHookType<Args, ReturnType, ContextType>
 {
-  protected taps: Array<Tap<Args, ReturnType>> = [];
-  protected interceptions: Array<Interceptor<Args, ReturnType>> = [];
+  protected taps: Array<Tap<Args, ReturnType, ContextType>>;
+  protected interceptions: InterceptionManager<Args, ReturnType, ContextType>;
 
-  constructor() {}
+  constructor() {
+    this.taps = [];
+    this.interceptions = new InterceptionManager<
+      Args,
+      ReturnType,
+      ContextType
+    >();
+  }
 
+  public tap(
+    options: { name: string; context?: false },
+    callback: (...args: Args) => ReturnType
+  ): Tap<Args, ReturnType, ContextType>;
+  public tap(
+    options: { name: string; context: true },
+    callback: (ctx: ContextType, ...args: Args) => ReturnType
+  ): Tap<Args, ReturnType, ContextType>;
   public tap(
     name: string,
     callback: (...args: Args) => ReturnType
-  ): Tap<Args, ReturnType> {
-    const key = Symbol(name);
-    const tap: Tap<Args, ReturnType> = {
+  ): Tap<Args, ReturnType, ContextType>;
+
+  public tap(options: any, callback: any): Tap<Args, ReturnType, ContextType> {
+    const resolvedOptions =
+      typeof options === "string"
+        ? {
+            name: options,
+            context: false,
+          }
+        : {
+            context: false,
+            ...options,
+          };
+
+    const key = Symbol(resolvedOptions.name);
+    const tap: Tap<Args, ReturnType, ContextType> = {
       key,
-      name,
+      ...resolvedOptions,
       callback,
     };
+
     this.taps.push(tap);
+
+    this.interceptions.tap(tap);
 
     return tap;
   }
 
-  public call(...args: Args) {
-    this.interceptions.forEach((i) => {
-      i.call?.(...args);
-    });
-    this.taps.forEach((t) => {
-      t.callback(...args);
-    });
-    this.interceptions.forEach((i) => {
-      i.done?.();
-    });
-  }
+  abstract call(...args: Args): ReturnType;
 
-  public untap(tap: Tap<Args, ReturnType>) {
+  public untap(tap: Tap<Args, ReturnType, ContextType>) {
     this.taps = this.taps.filter((t) => t.key !== tap.key);
   }
 
   public isUsed() {
-    return this.taps.length > 0;
+    return this.taps.length > 0 || this.interceptions.isUsed();
   }
 
-  public intercept(int: Interceptor<Args, ReturnType>): void {
-    this.interceptions.push(int);
+  public intercept(int: Interceptor<Args, ReturnType, ContextType>): void {
+    this.interceptions.intercept(int);
   }
 }
 
-export class SyncHook<Args extends any[]> extends Hook<Args, void> {}
+export class SyncHook<
+  Args extends any[],
+  ContextType = Record<string, any>
+> extends Hook<Args, void, ContextType> {
+  public call(...args: Args) {
+    if (!this.isUsed()) {
+      return;
+    }
 
-export class SyncBailHook<Args extends any[], ReturnType> extends Hook<
-  Args,
-  ReturnType | undefined | null
-> {
+    const ctx: ContextType = {} as any;
+
+    this.interceptions.call(...args);
+
+    try {
+      this.taps.forEach((t) => {
+        callTap(t, args, ctx);
+      });
+    } catch (err: unknown) {
+      this.interceptions.error(err);
+
+      throw err;
+    }
+
+    this.interceptions.done();
+  }
+}
+
+export class SyncBailHook<
+  Args extends any[],
+  ReturnType,
+  ContextType = Record<string, any>
+> extends Hook<Args, ReturnType | undefined | null, ContextType> {
   public call(...args: Args): ReturnType | undefined | null {
-    this.interceptions.forEach((i) => {
-      i.call?.(...args);
-    });
+    if (!this.isUsed()) {
+      return;
+    }
+
+    const ctx: ContextType = {} as any;
+
+    this.interceptions.call(...args);
 
     for (let tapIndex = 0; tapIndex < this.taps.length; tapIndex += 1) {
-      const rtn = this.taps[tapIndex].callback(...args);
+      const rtn = callTap(this.taps[tapIndex], args, ctx);
       if (rtn !== undefined) {
-        this.interceptions.forEach((i) => {
-          i.result?.(rtn);
-        });
-
-        this.interceptions.forEach((i) => {
-          i.done?.();
-        });
-
+        this.interceptions.result(rtn as any);
         return rtn;
       }
     }
 
-    this.interceptions.forEach((i) => {
-      i.done?.();
-    });
+    this.interceptions.done();
   }
 }
 
-export class SyncWaterfallHook<Args extends any[]> extends Hook<Args, Args[0]> {
+export class SyncWaterfallHook<
+  Args extends any[],
+  ContextType = Record<string, any>
+> extends Hook<Args, Args[0], ContextType> {
   public call(...args: Args): Args[0] {
-    this.interceptions.forEach((i) => {
-      i.call?.(...args);
-    });
+    const ctx: ContextType = {} as any;
+
+    this.interceptions.call(...args);
 
     let [rtn, ...rest] = args;
 
     for (let tapIndex = 0; tapIndex < this.taps.length; tapIndex += 1) {
-      rtn = (this.taps[tapIndex].callback as any)(rtn, ...rest);
+      const tapValue = callTap(this.taps[tapIndex], [rtn, ...rest] as any, ctx);
+      if (tapValue !== undefined) {
+        rtn = tapValue;
+      }
     }
 
-    this.interceptions.forEach((i) => {
-      i.result?.(rtn);
-    });
-
-    this.interceptions.forEach((i) => {
-      i.done?.();
-    });
+    this.interceptions.result(rtn as any);
+    this.interceptions.done();
 
     return rtn;
   }
 }
 
-export class SyncLoopHook<Args extends any[]> extends Hook<Args, void> {
+export class SyncLoopHook<
+  Args extends any[],
+  ContextType = Record<string, any>
+> extends Hook<Args, void, ContextType> {
   public call(...args: Args) {
     let finished = false;
+    const ctx: ContextType = {} as any;
 
-    while (finished !== true) {
-      finished = true;
-      for (let tapIndex = 0; tapIndex < this.taps.length; tapIndex += 1) {
-        const rtn = this.taps[tapIndex].callback(...args);
+    this.interceptions.call(...args);
 
-        if (rtn !== undefined) {
-          finished = false;
-          break;
+    try {
+      while (finished !== true) {
+        finished = true;
+        this.interceptions.loop(...args);
+        for (let tapIndex = 0; tapIndex < this.taps.length; tapIndex += 1) {
+          const rtn = callTap(this.taps[tapIndex], args, ctx);
+
+          if (rtn !== undefined) {
+            finished = false;
+            break;
+          }
         }
       }
+    } catch (e: unknown) {
+      this.interceptions.error(e);
+      throw e;
+    }
+
+    this.interceptions.done();
+  }
+}
+
+export class AsyncParallelHook<
+  Args extends any[],
+  ContextType = Record<string, any>
+> extends Hook<Args, Promise<void>, ContextType> {
+  public async call(...args: Args): Promise<void> {
+    const ctx: ContextType = {} as any;
+
+    this.interceptions.call(...args);
+
+    try {
+      await Promise.allSettled(this.taps.map((tap) => callTap(tap, args, ctx)));
+
+      this.interceptions.done();
+    } catch (e: unknown) {
+      this.interceptions.error(e);
+      throw e;
     }
   }
 }
 
-export class AsyncParallelHook<Args extends any[]> extends Hook<
-  Args,
-  Promise<void>
-> {
-  public async call(...args: Args): Promise<void> {
-    await Promise.allSettled(this.taps.map((tap) => tap.callback(...args)));
-  }
-}
-
-export class AsyncParallelBailHook<Args extends any[], ReturnType> extends Hook<
-  Args,
-  Promise<ReturnType>
-> {
+export class AsyncParallelBailHook<
+  Args extends any[],
+  ReturnType,
+  ContextType = Record<string, any>
+> extends Hook<Args, Promise<ReturnType>, ContextType> {
   public async call(...args: Args): Promise<ReturnType> {
-    return Promise.any(this.taps.map((tap) => tap.callback(...args)));
+    const ctx: ContextType = {} as any;
+
+    this.interceptions.call(...args);
+
+    const rtn = await Promise.any(
+      this.taps.map((tap) => callTap(tap, args, ctx))
+    );
+
+    this.interceptions.result(rtn as any);
+
+    return rtn;
   }
 }
 
-export class AsyncSeriesHook<Args extends any[]> extends Hook<
-  Args,
-  Promise<void>
-> {
+export class AsyncSeriesHook<
+  Args extends any[],
+  ContextType = Record<string, any>
+> extends Hook<Args, Promise<void>, ContextType> {
   public async call(...args: Args): Promise<void> {
+    const ctx: ContextType = {} as any;
+
+    this.interceptions.call(...args);
+
     for (let tapIndex = 0; tapIndex < this.taps.length; tapIndex += 1) {
-      await this.taps[tapIndex].callback(...args);
+      await callTap(this.taps[tapIndex], args, ctx);
     }
   }
 }
 
-export class AsyncSeriesBailHook<Args extends any[], ReturnType> extends Hook<
-  Args,
-  Promise<ReturnType>
-> {
+export class AsyncSeriesBailHook<
+  Args extends any[],
+  ReturnType,
+  ContextType = Record<string, any>
+> extends Hook<Args, Promise<ReturnType | undefined | null>, ContextType> {
   public async call(...args: Args): Promise<ReturnType | undefined | null> {
+    const ctx: ContextType = {} as any;
+
+    this.interceptions.call(...args);
+
     for (let tapIndex = 0; tapIndex < this.taps.length; tapIndex += 1) {
-      const rtn = await this.taps[tapIndex].callback(...args);
+      const rtn = await callTap(this.taps[tapIndex], args, ctx);
       if (rtn !== undefined) {
+        this.interceptions.result(rtn);
         return rtn;
       }
     }
+
+    this.interceptions.done();
   }
 }
 
 export class AsyncSeriesWaterfallHook<
   Args extends any[],
-  ReturnType
-> extends Hook<Args, Promise<ReturnType>> {
+  ReturnType,
+  ContextType = Record<string, any>
+> extends Hook<Args, Promise<ReturnType>, ContextType> {
   public async call(...args: Args): Promise<ReturnType> {
     let [rtn, ...rest] = args;
+    const ctx: ContextType = {} as any;
+
+    this.interceptions.call(...args);
 
     for (let tapIndex = 0; tapIndex < this.taps.length; tapIndex += 1) {
-      rtn = await (this.taps[tapIndex].callback as any)(rtn, ...rest);
+      rtn = await callTap(this.taps[tapIndex], [rtn, ...rest] as any, ctx);
     }
 
     return rtn;
