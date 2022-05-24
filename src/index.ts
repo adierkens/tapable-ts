@@ -295,7 +295,6 @@ export class SyncWaterfallHook<
     }
 
     this.interceptions.result(rtn as any);
-    this.interceptions.done();
 
     return rtn;
   }
@@ -339,17 +338,10 @@ export class AsyncParallelHook<
 > extends Hook<Args, Promise<void>, ContextType> {
   public async call(...args: Args): Promise<void> {
     const ctx: ContextType = {} as any;
-
     this.interceptions.call(...args);
 
-    try {
-      await Promise.allSettled(this.taps.map((tap) => callTap(tap, args, ctx)));
-
-      this.interceptions.done();
-    } catch (e: unknown) {
-      this.interceptions.error(e);
-      throw e;
-    }
+    await Promise.allSettled(this.taps.map((tap) => callTap(tap, args, ctx)));
+    this.interceptions.done();
   }
 }
 
@@ -363,13 +355,17 @@ export class AsyncParallelBailHook<
 
     this.interceptions.call(...args);
 
-    const rtn = await Promise.any(
-      this.taps.map((tap) => callTap(tap, args, ctx))
-    );
+    try {
+      const rtn = await Promise.race(
+        this.taps.map((tap) => callTap(tap, args, ctx))
+      );
 
-    this.interceptions.result(rtn as any);
-
-    return rtn;
+      this.interceptions.result(rtn as any);
+      return rtn;
+    } catch (e: unknown) {
+      this.interceptions.error(e);
+      throw e;
+    }
   }
 }
 
@@ -382,9 +378,16 @@ export class AsyncSeriesHook<
 
     this.interceptions.call(...args);
 
-    for (let tapIndex = 0; tapIndex < this.taps.length; tapIndex += 1) {
-      await callTap(this.taps[tapIndex], args, ctx);
+    try {
+      for (let tapIndex = 0; tapIndex < this.taps.length; tapIndex += 1) {
+        await callTap(this.taps[tapIndex], args, ctx);
+      }
+    } catch (e: unknown) {
+      this.interceptions.error(e);
+      throw e;
     }
+
+    this.interceptions.done();
   }
 }
 
@@ -398,12 +401,17 @@ export class AsyncSeriesBailHook<
 
     this.interceptions.call(...args);
 
-    for (let tapIndex = 0; tapIndex < this.taps.length; tapIndex += 1) {
-      const rtn = await callTap(this.taps[tapIndex], args, ctx);
-      if (rtn !== undefined) {
-        this.interceptions.result(rtn);
-        return rtn;
+    try {
+      for (let tapIndex = 0; tapIndex < this.taps.length; tapIndex += 1) {
+        const rtn = await callTap(this.taps[tapIndex], args, ctx);
+        if (rtn !== undefined) {
+          this.interceptions.result(rtn);
+          return rtn;
+        }
       }
+    } catch (e: unknown) {
+      this.interceptions.error(e);
+      throw e;
     }
 
     this.interceptions.done();
@@ -412,19 +420,64 @@ export class AsyncSeriesBailHook<
 
 export class AsyncSeriesWaterfallHook<
   Args extends any[],
-  ReturnType,
   ContextType = Record<string, any>
-> extends Hook<Args, Promise<ReturnType>, ContextType> {
-  public async call(...args: Args): Promise<ReturnType> {
+> extends Hook<Args, Promise<Args[0]>, ContextType> {
+  public async call(...args: Args): Promise<Args[0]> {
     let [rtn, ...rest] = args;
     const ctx: ContextType = {} as any;
 
     this.interceptions.call(...args);
 
-    for (let tapIndex = 0; tapIndex < this.taps.length; tapIndex += 1) {
-      rtn = await callTap(this.taps[tapIndex], [rtn, ...rest] as any, ctx);
+    try {
+      for (let tapIndex = 0; tapIndex < this.taps.length; tapIndex += 1) {
+        const tapValue = await callTap(
+          this.taps[tapIndex],
+          [rtn, ...rest] as any,
+          ctx
+        );
+        if (tapValue !== undefined) {
+          rtn = tapValue;
+        }
+      }
+    } catch (e: unknown) {
+      this.interceptions.error(e);
+      throw e;
     }
 
+    this.interceptions.result(rtn);
+
     return rtn;
+  }
+}
+
+export class AsyncSeriesLoopHook<
+  Args extends any[],
+  ContextType = Record<string, any>
+> extends Hook<Args, Promise<void>, ContextType> {
+  public async call(...args: Args): Promise<void> {
+    let finished = false;
+    const ctx: ContextType = {} as any;
+
+    this.interceptions.call(...args);
+
+    try {
+      while (finished !== true) {
+        finished = true;
+        this.interceptions.loop(...args);
+        for (let tapIndex = 0; tapIndex < this.taps.length; tapIndex += 1) {
+          const rtn = await callTap(this.taps[tapIndex], args, ctx);
+
+          if (rtn !== undefined) {
+            finished = false;
+            break;
+          }
+        }
+      }
+    } catch (e: unknown) {
+      this.interceptions.error(e);
+      throw e;
+    }
+
+    this.interceptions.done();
   }
 }
