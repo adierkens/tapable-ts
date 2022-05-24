@@ -6,7 +6,7 @@ A TypeScript rewrite of [`tapable`](https://github.com/webpack/tapable)
 
 `tapable` is a great plugin system from webpack that enables users to expose _hooks_ from modules within your app that plugins can _tap_ into and customize the behavior. I use it in almost all of my projects, but there are a few quirks with the original that made it hard to use in other applications.
 
-After using it in a bunch of projects, I wanted a bit more control over what's possible; like custom tap execution order, the ability to `untap` a hook, higher level abstractions, `PluginManager`s, etc.
+After using it in a bunch of projects, I wanted a bit more control over what's possible; like custom tap execution order, the ability to `untap` a hook, higher level abstractions, `PluginManager`s, etc -- and the performance tradeoffs made in the original library also didn't always align with how I end up using the library.
 
 ## API
 
