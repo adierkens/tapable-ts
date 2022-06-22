@@ -128,6 +128,26 @@ describe("sync hook", () => {
       expect(intercept.done).not.toBeCalled();
       expect(intercept.result).not.toBeCalled();
     });
+
+    it("works with context", () => {
+      const hook = new SyncHook<[number]>();
+
+      const tap = jest.fn();
+
+      hook.intercept({
+        context: true,
+        call(context, args_0) {
+          context["foo"] = "bar";
+        },
+      });
+
+      hook.tap({ name: "test", context: true }, (ctx, num) => {
+        tap(ctx, num);
+      });
+      hook.call(1);
+
+      expect(tap).toBeCalledWith({ foo: "bar" }, 1);
+    });
   });
 
   describe("context", () => {

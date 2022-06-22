@@ -1,7 +1,5 @@
-export interface Interceptor<Args extends any[], ReturnType, ContextType> {
+export type Interceptor<Args extends any[], ReturnType, ContextType> = {
   name?: string;
-  tap?: (tap: Tap<Args, ReturnType, ContextType>) => void;
-  call?: (...args: Args) => void;
   loop?: (...args: Args) => void;
   error?: (err: Error) => void;
   result?: (
@@ -10,7 +8,17 @@ export interface Interceptor<Args extends any[], ReturnType, ContextType> {
       : ReturnType
   ) => void;
   done?: () => void;
-}
+  tap?: (tap: Tap<Args, ReturnType, ContextType>) => void;
+} & (
+  | {
+      context?: false;
+      call?: (...args: Args) => void;
+    }
+  | {
+      context: true;
+      call?: (context: ContextType, ...args: Args) => void;
+    }
+);
 
 export type Tap<Args extends any[], ReturnType, ContextType = unknown> = {
   key: Symbol;
@@ -103,10 +111,14 @@ class InterceptionManager<
     }
   }
 
-  call(...args: Args): void {
+  call(ctx: ContextType, ...args: Args): void {
     if (this.interceptionKeySet.has("call")) {
       this.interceptions.forEach((i) => {
-        i.call?.(...args);
+        if (i.context) {
+          i.call?.(ctx, ...args);
+        } else {
+          i.call?.(...args);
+        }
       });
     }
   }
@@ -234,7 +246,7 @@ export class SyncHook<
 
     const ctx: ContextType = {} as any;
 
-    this.interceptions.call(...args);
+    this.interceptions.call(ctx, ...args);
 
     try {
       this.taps.forEach((t) => {
@@ -262,7 +274,7 @@ export class SyncBailHook<
 
     const ctx: ContextType = {} as any;
 
-    this.interceptions.call(...args);
+    this.interceptions.call(ctx, ...args);
 
     for (let tapIndex = 0; tapIndex < this.taps.length; tapIndex += 1) {
       const rtn = callTap(this.taps[tapIndex], args, ctx);
@@ -283,7 +295,7 @@ export class SyncWaterfallHook<
   public call(...args: Args): Args[0] {
     const ctx: ContextType = {} as any;
 
-    this.interceptions.call(...args);
+    this.interceptions.call(ctx, ...args);
 
     let [rtn, ...rest] = args;
 
@@ -308,7 +320,7 @@ export class SyncLoopHook<
     let finished = false;
     const ctx: ContextType = {} as any;
 
-    this.interceptions.call(...args);
+    this.interceptions.call(ctx, ...args);
 
     try {
       while (finished !== true) {
@@ -338,7 +350,7 @@ export class AsyncParallelHook<
 > extends Hook<Args, Promise<void>, ContextType> {
   public async call(...args: Args): Promise<void> {
     const ctx: ContextType = {} as any;
-    this.interceptions.call(...args);
+    this.interceptions.call(ctx, ...args);
 
     await Promise.allSettled(this.taps.map((tap) => callTap(tap, args, ctx)));
     this.interceptions.done();
@@ -353,7 +365,7 @@ export class AsyncParallelBailHook<
   public async call(...args: Args): Promise<ReturnType> {
     const ctx: ContextType = {} as any;
 
-    this.interceptions.call(...args);
+    this.interceptions.call(ctx, ...args);
 
     try {
       const rtn = await Promise.race(
@@ -376,7 +388,7 @@ export class AsyncSeriesHook<
   public async call(...args: Args): Promise<void> {
     const ctx: ContextType = {} as any;
 
-    this.interceptions.call(...args);
+    this.interceptions.call(ctx, ...args);
 
     try {
       for (let tapIndex = 0; tapIndex < this.taps.length; tapIndex += 1) {
@@ -399,7 +411,7 @@ export class AsyncSeriesBailHook<
   public async call(...args: Args): Promise<ReturnType | undefined | null> {
     const ctx: ContextType = {} as any;
 
-    this.interceptions.call(...args);
+    this.interceptions.call(ctx, ...args);
 
     try {
       for (let tapIndex = 0; tapIndex < this.taps.length; tapIndex += 1) {
@@ -426,7 +438,7 @@ export class AsyncSeriesWaterfallHook<
     let [rtn, ...rest] = args;
     const ctx: ContextType = {} as any;
 
-    this.interceptions.call(...args);
+    this.interceptions.call(ctx, ...args);
 
     try {
       for (let tapIndex = 0; tapIndex < this.taps.length; tapIndex += 1) {
@@ -458,7 +470,7 @@ export class AsyncSeriesLoopHook<
     let finished = false;
     const ctx: ContextType = {} as any;
 
-    this.interceptions.call(...args);
+    this.interceptions.call(ctx, ...args);
 
     try {
       while (finished !== true) {
