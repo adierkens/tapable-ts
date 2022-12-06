@@ -54,29 +54,35 @@ describe("sync hook", () => {
     syncHook.tap("tap1", (input) => {
       return [...input, 'tap1']
     });
-    syncHook.tap({name: "tap2", before: "tap1"}, (input) => {
+    syncHook.tap({name: "tap2", before: "tap1"} , (input) => {
       return [...input, 'tap2']
+    });
+    syncHook.tap({name: "tap3", before: ["tap1", "tap2"]}, (input) => {
+      return [...input, 'tap3']
     });
 
     const result = syncHook.call([]);
 
-    expect(result).toStrictEqual(["tap2", "tap1"]);
+    expect(result).toStrictEqual(["tap3", "tap2", "tap1"]);
   });
 
   it("can specify tap order for future taps", () => {
     const syncHook = new SyncWaterfallHook<[Array<string>]>();
 
-    syncHook.tap({name: "tap2", before: "tap1"}, (input) => {
+    syncHook.tap({name: "tap3", before: ["tap1", "tap2"]}, (input) => {
+      return [...input, 'tap3']
+    });
+    syncHook.tap({name: "tap2", before: "tap1"} , (input) => {
       return [...input, 'tap2']
     });
-    
     syncHook.tap("tap1", (input) => {
       return [...input, 'tap1']
     });
 
+
     const result = syncHook.call([]);
 
-    expect(result).toStrictEqual(["tap2", "tap1"]);
+    expect(result).toStrictEqual(["tap3", "tap2", "tap1"]);
   });
 
   it("works with no taps", () => {
