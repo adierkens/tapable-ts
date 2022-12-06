@@ -1,3 +1,5 @@
+import { equalToOrIn } from "./utils"
+
 export type Interceptor<Args extends any[], ReturnType, ContextType> = {
   name?: string;
   loop?: (...args: Args) => void;
@@ -23,6 +25,7 @@ export type Interceptor<Args extends any[], ReturnType, ContextType> = {
 export type Tap<Args extends any[], ReturnType, ContextType = unknown> = {
   key: Symbol;
   name: string;
+  before?: string | Array<string>;
 } & (
   | {
       context: false;
@@ -36,7 +39,8 @@ export type Tap<Args extends any[], ReturnType, ContextType = unknown> = {
 
 type BasicTap<Args extends any[], ReturnType, ContextType> = (
   name: string,
-  callback: (...args: Args) => ReturnType
+  callback: (...args: Args) => ReturnType,
+  before?: string | Array<string>
 ) => Tap<Args, ReturnType, ContextType>;
 
 type TapWithContext<Args extends any[], ReturnType, ContextType> =
@@ -44,6 +48,7 @@ type TapWithContext<Args extends any[], ReturnType, ContextType> =
       options: {
         name: string;
         context?: false;
+        before?: string | Array<string>;
       },
       callback: (...args: Args) => ReturnType
     ) => Tap<Args, ReturnType>)
@@ -51,6 +56,7 @@ type TapWithContext<Args extends any[], ReturnType, ContextType> =
       options: {
         name: string;
         context: true;
+        before?: string | Array<string>;
       },
       callback: (context: ContextType, ...args: Args) => ReturnType
     ) => Tap<Args, ReturnType>);
@@ -182,11 +188,11 @@ abstract class Hook<
   }
 
   public tap(
-    options: { name: string; context?: false },
+    options: { name: string; context?: false; before?: string | Array<string>},
     callback: (...args: Args) => ReturnType
   ): Tap<Args, ReturnType, ContextType>;
   public tap(
-    options: { name: string; context: true },
+    options: { name: string; context: true; before?: string | Array<string> },
     callback: (ctx: ContextType, ...args: Args) => ReturnType
   ): Tap<Args, ReturnType, ContextType>;
   public tap(
@@ -214,6 +220,17 @@ abstract class Hook<
     };
 
     this.taps.push(tap);
+    this.taps.sort((A, B) => {
+      if(A.before && equalToOrIn(B.name, A.before)){
+        return -1
+      } 
+
+      if (B.before && equalToOrIn(A.name, B.before)){
+        return 1
+      }
+
+      return 0
+    })
 
     this.interceptions.tap(tap);
 
