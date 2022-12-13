@@ -220,14 +220,18 @@ abstract class Hook<
     };
 
     if(tap.before){
-      let i
-      for(i = 0; i < this.taps.length; i++){
-        const t = this.taps[i]
-        if(equalToOrIn(t.name, tap.before)){
+      let insertionIndex = this.taps.length
+      const beforeSet = new Set(Array.isArray(tap.before) ? tap.before : [tap.before])
+      for(insertionIndex; insertionIndex > 0 && beforeSet.size > 0; insertionIndex--){
+        const t = this.taps[insertionIndex-1]
+        if(beforeSet.has(t.name)){
+          beforeSet.delete(t.name)
+        }
+        if(t.before && equalToOrIn(tap.name, t.before)){
           break
         }
       }
-      this.taps.splice(i, 0, tap)
+      this.taps.splice(insertionIndex, 0, tap)
     } else {
       this.taps.push(tap)
     }
