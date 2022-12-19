@@ -219,18 +219,22 @@ abstract class Hook<
       callback,
     };
 
-    this.taps.push(tap);
-    this.taps.sort((A, B) => {
-      if(A.before && equalToOrIn(B.name, A.before)){
-        return -1
-      } 
-
-      if (B.before && equalToOrIn(A.name, B.before)){
-        return 1
+    if(tap.before){
+      let insertionIndex = this.taps.length
+      const beforeSet = new Set(Array.isArray(tap.before) ? tap.before : [tap.before])
+      for(insertionIndex; insertionIndex > 0 && beforeSet.size > 0; insertionIndex--){
+        const t = this.taps[insertionIndex-1]
+        if(beforeSet.has(t.name)){
+          beforeSet.delete(t.name)
+        }
+        if(t.before && equalToOrIn(tap.name, t.before)){
+          break
+        }
       }
-
-      return 0
-    })
+      this.taps.splice(insertionIndex, 0, tap)
+    } else {
+      this.taps.push(tap)
+    }
 
     this.interceptions.tap(tap);
 
