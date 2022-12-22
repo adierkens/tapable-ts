@@ -1,0 +1,10 @@
+{
+  "extends": "@design-systems",
+  "rules": {
+    "no-param-reassign": "off",
+    "@typescript-eslint/no-empty-function": "off",
+    "max-classes-per-file": "off",
+    "jsdoc/require-jsdoc": "warn",
+    "no-await-in-loop": "off"
+  }
+}
