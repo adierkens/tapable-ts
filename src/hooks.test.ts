@@ -52,39 +52,38 @@ describe("sync hook", () => {
     const syncHook = new SyncWaterfallHook<[Array<string>]>();
 
     syncHook.tap("tap1", (input) => {
-      return [...input, 'tap1']
+      return [...input, "tap1"];
     });
-    syncHook.tap({name: "tap2", before: "tap1"} , (input) => {
-      return [...input, 'tap2']
+    syncHook.tap({ name: "tap2", before: "tap1" }, (input) => {
+      return [...input, "tap2"];
     });
-    syncHook.tap({name: "tap3", before: ["tap1", "tap2"]}, (input) => {
-      return [...input, 'tap3']
+    syncHook.tap({ name: "tap3", before: ["tap1", "tap2"] }, (input) => {
+      return [...input, "tap3"];
     });
-    syncHook.tap({name: "tap4", before: ["tap3"]}, (input) => {
-      return [...input, 'tap4']
+    syncHook.tap({ name: "tap4", before: ["tap3"] }, (input) => {
+      return [...input, "tap4"];
     });
 
     const result = syncHook.call([]);
 
-    expect(result).toStrictEqual(["tap4","tap3", "tap2", "tap1"]);
+    expect(result).toStrictEqual(["tap4", "tap3", "tap2", "tap1"]);
   });
 
   it("can specify tap order for future taps", () => {
     const syncHook = new SyncWaterfallHook<[Array<string>]>();
 
-    syncHook.tap({name: "tap4", before: "tap2"}, (input) => {
-      return [...input, 'tap4']
+    syncHook.tap({ name: "tap4", before: "tap2" }, (input) => {
+      return [...input, "tap4"];
     });
-    syncHook.tap({name: "tap3", before: ["tap1", "tap2"]}, (input) => {
-      return [...input, 'tap3']
+    syncHook.tap({ name: "tap3", before: ["tap1", "tap2"] }, (input) => {
+      return [...input, "tap3"];
     });
-    syncHook.tap({name: "tap2", before: "tap1"} , (input) => {
-      return [...input, 'tap2']
+    syncHook.tap({ name: "tap2", before: "tap1" }, (input) => {
+      return [...input, "tap2"];
     });
     syncHook.tap("tap1", (input) => {
-      return [...input, 'tap1']
+      return [...input, "tap1"];
     });
-
 
     const result = syncHook.call([]);
 
@@ -94,22 +93,21 @@ describe("sync hook", () => {
   it("mixed tap order", () => {
     const syncHook = new SyncWaterfallHook<[Array<string>]>();
 
-
-    syncHook.tap({name: "tap1", before: "tap0"}, (input) => {
-      return [...input, 'tap1']
+    syncHook.tap({ name: "tap1", before: "tap0" }, (input) => {
+      return [...input, "tap1"];
     });
-    syncHook.tap("tap2" , (input) => {
-      return [...input, 'tap2']
+    syncHook.tap("tap2", (input) => {
+      return [...input, "tap2"];
     });
-    syncHook.tap({name: "tap0", before: ["tap3"]}, (input) => {
-      return [...input, 'tap0']
+    syncHook.tap({ name: "tap0", before: ["tap3"] }, (input) => {
+      return [...input, "tap0"];
     });
-    syncHook.tap({name: "tap3", before: ["tap2"]}, (input) => {
-      return [...input, 'tap3']
-    });   
+    syncHook.tap({ name: "tap3", before: ["tap2"] }, (input) => {
+      return [...input, "tap3"];
+    });
     const result = syncHook.call([]);
 
-    expect(result).toStrictEqual(["tap1","tap0","tap3", "tap2"]);
+    expect(result).toStrictEqual(["tap1", "tap0", "tap3", "tap2"]);
   });
 
   it("works with no taps", () => {
@@ -199,8 +197,8 @@ describe("sync hook", () => {
 
       hook.intercept({
         context: true,
-        call(context, args_0) {
-          context["foo"] = "bar";
+        call(context) {
+          context.foo = "bar";
         },
       });
 
@@ -222,8 +220,8 @@ describe("sync hook", () => {
         }
       >();
       const tapCb = jest.fn();
-      hook.tap({ name: "test1", context: true }, (ctx, arg) => {
-        ctx["foo"] = "bar";
+      hook.tap({ name: "test1", context: true }, (ctx) => {
+        ctx.foo = "bar";
       });
 
       hook.tap({ name: "test2", context: true }, tapCb);

@@ -1,29 +1,39 @@
-import { equalToOrIn } from "./utils"
+import { equalToOrIn } from "./utils";
 
 export type Interceptor<Args extends any[], ReturnType, ContextType> = {
+  /** An optional name for the interceptor */
   name?: string;
+  /** Callback for each loop when used by the hook */
   loop?: (...args: Args) => void;
+  /** Callback when an error occurs during the hook's call */
   error?: (err: Error) => void;
+  /** Callback when a result is found for a hook's invocation */
   result?: (
     r: ReturnType extends Promise<infer AwaitedValue>
       ? AwaitedValue
       : ReturnType
   ) => void;
+  /** Callback when a hook's call is complete */
   done?: () => void;
+  /** Callback when a hook is tapped */
   tap?: (tap: Tap<Args, ReturnType, ContextType>) => void;
 } & (
   | {
+      /** If context should be omitted from the 'call'. This is the default */
       context?: false;
+      /** Callback when the hook is tapped without context */
       call?: (...args: Args) => void;
     }
   | {
+      /** If context should be included in the 'call' */
       context: true;
+      /** Callback when the hook is tapped with context */
       call?: (context: ContextType, ...args: Args) => void;
     }
 );
 
 export type Tap<Args extends any[], ReturnType, ContextType = unknown> = {
-  key: Symbol;
+  key: symbol;
   name: string;
   before?: string | Array<string>;
 } & (
@@ -83,6 +93,7 @@ function callTap<Args extends any[], ReturnType, ContextType>(
   return tap.callback(...args);
 }
 
+/** A manager for all intercepts inside of a tap */
 class InterceptionManager<
   Args extends any[],
   ReturnType,
@@ -188,13 +199,15 @@ abstract class Hook<
   }
 
   public tap(
-    options: { name: string; context?: false; before?: string | Array<string>},
+    options: { name: string; context?: false; before?: string | Array<string> },
     callback: (...args: Args) => ReturnType
   ): Tap<Args, ReturnType, ContextType>;
+
   public tap(
     options: { name: string; context: true; before?: string | Array<string> },
     callback: (ctx: ContextType, ...args: Args) => ReturnType
   ): Tap<Args, ReturnType, ContextType>;
+
   public tap(
     name: string,
     callback: (...args: Args) => ReturnType
@@ -219,21 +232,29 @@ abstract class Hook<
       callback,
     };
 
-    if(tap.before){
-      let insertionIndex = this.taps.length
-      const beforeSet = new Set(Array.isArray(tap.before) ? tap.before : [tap.before])
-      for(insertionIndex; insertionIndex > 0 && beforeSet.size > 0; insertionIndex--){
-        const t = this.taps[insertionIndex-1]
-        if(beforeSet.has(t.name)){
-          beforeSet.delete(t.name)
+    if (tap.before) {
+      let insertionIndex = this.taps.length;
+      const beforeSet = new Set(
+        Array.isArray(tap.before) ? tap.before : [tap.before]
+      );
+      for (
+        insertionIndex;
+        insertionIndex > 0 && beforeSet.size > 0;
+        insertionIndex--
+      ) {
+        const t = this.taps[insertionIndex - 1];
+        if (beforeSet.has(t.name)) {
+          beforeSet.delete(t.name);
         }
-        if(t.before && equalToOrIn(tap.name, t.before)){
-          break
+
+        if (t.before && equalToOrIn(tap.name, t.before)) {
+          break;
         }
       }
-      this.taps.splice(insertionIndex, 0, tap)
+
+      this.taps.splice(insertionIndex, 0, tap);
     } else {
-      this.taps.push(tap)
+      this.taps.push(tap);
     }
 
     this.interceptions.tap(tap);
@@ -318,6 +339,7 @@ export class SyncWaterfallHook<
 
     this.interceptions.call(ctx, ...args);
 
+    // eslint-disable-next-line prefer-const
     let [rtn, ...rest] = args;
 
     for (let tapIndex = 0; tapIndex < this.taps.length; tapIndex += 1) {
@@ -327,7 +349,7 @@ export class SyncWaterfallHook<
       }
     }
 
-    this.interceptions.result(rtn as any);
+    this.interceptions.result(rtn);
 
     return rtn;
   }
@@ -456,6 +478,7 @@ export class AsyncSeriesWaterfallHook<
   ContextType = Record<string, any>
 > extends Hook<Args, Promise<Args[0]>, ContextType> {
   public async call(...args: Args): Promise<Args[0]> {
+    // eslint-disable-next-line prefer-const
     let [rtn, ...rest] = args;
     const ctx: ContextType = {} as any;
 
